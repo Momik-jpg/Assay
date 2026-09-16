@@ -15,9 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Pinned to the module's own version rather than `stable`. When
+      # `stable` moved to Go 1.27, golangci-lint v2.12.2 (built with 1.26)
+      # panicked type-checking the newer standard library, and this check
+      # failed on every push for reasons unrelated to the code under test.
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           cache: true
 
       - name: gofmt
@@ -45,9 +49,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Pinned to the module's own version rather than `stable`. When
+      # `stable` moved to Go 1.27, golangci-lint v2.12.2 (built with 1.26)
+      # panicked type-checking the newer standard library, and this check
+      # failed on every push for reasons unrelated to the code under test.
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           cache: true
       - uses: golangci/golangci-lint-action@v9
         with:
