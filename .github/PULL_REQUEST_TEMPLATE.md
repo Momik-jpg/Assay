@@ -1,11 +1,3 @@
----
-name: Pull request checklist
-about: Assay accepts PRs; the merge gate holds anything safety-critical for review.
-title: ''
-labels: ''
-assignments: ''
----
-
 <!-- The merge gate checks paths and dependency files automatically. The items
      below are the part it cannot check. A reviewer will close a PR that ticks
      boxes it cannot justify. -->
