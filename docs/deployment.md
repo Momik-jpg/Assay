@@ -20,8 +20,9 @@ deployed alongside it, wired to the registry above:
 
 | | |
 | --- | --- |
-| **Example gate contract** | `CANO57JRGTATHGLM26TWYPIXERSPVI5R52H33K7ZUJGGOEOVVZA44W3U` |
-| Wasm hash | `d1683a1ed24d7645168f5c212ad3f7d8979331b41e53ffa9eaa7a60babe32ebe` |
+| **Example gate contract** | `CAL5VYSWLKG367D5IYGI57XH7EMN5PLJ4CD6K3MO2HJBYYKEKPG3NKRX` |
+| Wasm hash | `ca40172ec8ebc259e7e21429748b2bd7cafe467fa3005d849d81d16938e8987c` |
+| Redeployed | 2026-09-16 — severity ceiling, [#26](https://github.com/use-assay/Assay/issues/26) |
 | Source | [`contracts/example-gate`](../assay-contracts/contracts/example-gate) |
 
 ### Deployment transactions
@@ -33,6 +34,8 @@ deployed alongside it, wired to the registry above:
 | `init(admin)` | `14082d78211ad494406c14d6f0bd2993a88008cb4091457a7685b3794d20ee09` |
 | Upload gate wasm | `2dc8387ff2a4ef2a24f788de627f566dfc6d60d96806f7ebffb529324056233e` |
 | Deploy gate | `a6c4f642af24f32ec116a8a8918153cacafb86f9ac33c73dfb942dce73d5897f` |
+| Upload gate wasm (redeploy) | `943c90b5d710499aa489b4ccb0c257447efb049859ef4401e10dc4e316e6d832` |
+| Deploy gate (redeploy, #26 fix) | `2137605713924608aa801c560a9121534efd330201e6e174a33da51190e7bfa4` |
 
 Any of these can be read at
 `https://stellar.expert/explorer/testnet/tx/<hash>`.
@@ -144,23 +147,30 @@ unknown asset is unknown, not safe.
 | unattested | `false` | `false` |
 
 And through the deployed example gate, which is a real cross-contract call
-rather than a direct read — `would_admit` returns `true` only for `AQUA`, and a
-submitted `deposit` reverts with the contract error naming the reason:
+rather than a direct read. The gate was redeployed on 2026-09-16 with the
+severity ceiling that [#26](https://github.com/use-assay/Assay/issues/26)
+tracked (deploy tx `21376057…7bfa4`); the results below are against the new
+instance. Because nothing re-attests, the August attestations are now past the
+gate's own 24-hour freshness window — which makes this the first live exercise
+of the stale branch as well:
 
 | Asset | `would_admit` | `deposit` |
 | --- | --- | --- |
-| `AQUA` | `true` | succeeded, balance credited (`7dde01b27c1c60f2c5f94ce453b652ca8fcd685fe8e1950ae6a4700b100679a0`) |
-| `USDZ` | `false` | reverts `Error(Contract, #3)` — `IssuerCanTakeIt` |
-| unattested | `false` | reverts `Error(Contract, #1)` — `NotAttested` |
+| `KALE` (fresh, clear) | `true` | succeeded, balance credited (`e3d2825c8e5a6615236904643873f0f325329c8a112ae338272a34abeab2f592`) |
+| `REPO` (fresh, critical) | `false` | reverts `Error(Contract, #4)` — `SeverityTooHigh` |
+| `DOGE` (critical by reputation, attested August) | `false` | reverts `Error(Contract, #2)` — `AttestationStale` |
+| `AQUA` (attested August) | `false` | reverts `Error(Contract, #2)` — `AttestationStale` |
+| `USDZ` (attested August, clawback) | `false` | reverts `Error(Contract, #2)` — `AttestationStale` |
+| unattested (`native`) | `false` | reverts `Error(Contract, #1)` — `NotAttested` |
 
-The gate refuses `USDC` too, at severity 2, because it reads the
-`auth_revocable` bit rather than the severity number.
-
-It also **wrongly admits `DOGE`** for the same reason: the example masks
-capability bits only, and DOGE's severity `4` comes entirely from reputation,
-which sets no capability bit. A correct gate reads both axes. See
-[integrating.md](integrating.md) for the corrected pattern and
-[#26](https://github.com/use-assay/Assay/issues/26) for the contract fix.
+The old instance admitted `DOGE`: it masked capability bits only, and DOGE's
+severity `4` comes entirely from reputation, which sets no capability bit.
+`REPO` — attested fresh on 2026-09-16 and critical for the same reason — is
+refused with `#4` by the new instance, which is the ceiling's own branch; DOGE's
+refusal surfaces as `#2` only because its attestation predates the redeploy and
+the freshness check runs first. Either way it is refused. The admit path is
+proven with a submitted transaction rather than a simulation, and the balance
+reads back `1`.
 
 ## Redeploying
 
@@ -192,7 +202,7 @@ hand-written severity reach the contract.
 - **One key can write anything.** The admin is a single ed25519 account whose
   seed lives on one machine. Anyone holding it can attest any severity for any
   asset. A real deployment wants a threshold of independent attesters.
-- **7 attested assets.** Everything else on the network reads as `None`. That is the
+- **10 attested assets.** Everything else on the network reads as `None`. That is the
   correct answer — unknown, not safe — but it means the registry is not useful
   as a general lookup yet.
 - **No re-attestation schedule.** These attestations are as fresh as the
