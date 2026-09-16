@@ -1,6 +1,8 @@
 package attest_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -30,6 +32,77 @@ func report(mut func(*mechanics.Report)) *mechanics.Report {
 		mut(rep)
 	}
 	return rep
+}
+
+// The encoding in docs/contract-interface.md is a promise to verifiers: the
+// hash is only re-derivable if the byte format is exactly what is documented.
+// The expected preimage below is assembled from the documented rules rather
+// than from the code under test, so any divergence between the documentation
+// and the code fails here instead of silently breaking reproducibility for
+// everyone who re-scans.
+//
+// The claim under test carries every escapable byte (backslash, tab, newline,
+// CR), and the two evidence lines must come out in sorted order
+// ("horizon" < "stellar.expert/directory").
+func TestPreimageMatchesTheDocumentedEncoding(t *testing.T) {
+	nl, tab, cr, bs := "\n", "\t", "\r", "\\"
+
+	// A claim containing all four escapable bytes.
+	raw := strings.Join([]string{
+		"issuer flags: auth_required=false",
+		"second" + tab + "line" + bs + "with" + bs + "backslash" + cr + "end",
+	}, nl)
+
+	// The escaping the documentation specifies, applied by hand rather than by
+	// calling into the code under test. Backslash first, then the remaining
+	// three — the order matters, or the escapes introduced below would
+	// themselves be escaped.
+	escaped := strings.ReplaceAll(raw, bs, bs+bs)
+	escaped = strings.ReplaceAll(escaped, nl, bs+"n")
+	escaped = strings.ReplaceAll(escaped, tab, bs+"t")
+	escaped = strings.ReplaceAll(escaped, cr, bs+"r")
+
+	rep := report(nil)
+	rep.Evidence = []mechanics.Evidence{
+		{
+			Source: "stellar.expert/directory",
+			URL:    "https://api.stellar.expert/explorer/directory/" + rep.Asset.Issuer,
+			Claim:  `listed as "AQUA Issuer" on aqua.network`,
+		},
+		{
+			Source: "horizon",
+			URL:    "https://horizon.stellar.org/assets?asset_code=AQUA",
+			Claim:  raw,
+		},
+	}
+
+	params, err := attest.FromReport(rep)
+	if err != nil {
+		t.Fatalf("FromReport: %v", err)
+	}
+
+	// Assembled from the format table in docs/contract-interface.md.
+	want := strings.Join([]string{
+		"assay-evidence-v1",
+		"asset\t" + rep.Asset.String(),
+		"severity\t0",
+		"base_severity\t0",
+		"escalated\tfalse",
+		"mechanics\t0",
+		"accountability\tverified",
+		// Evidence lines sorted bytewise: horizon before stellar.expert.
+		"evidence\thorizon\thttps://horizon.stellar.org/assets?asset_code=AQUA\t" + escaped,
+		"evidence\tstellar.expert/directory\thttps://api.stellar.expert/explorer/directory/" + rep.Asset.Issuer + "\t" + `listed as "AQUA Issuer" on aqua.network`,
+	}, nl) + nl
+
+	if params.Preimage != want {
+		t.Fatalf("preimage diverged from the documented encoding\n got: %q\nwant: %q", params.Preimage, want)
+	}
+
+	sum := sha256.Sum256([]byte(want))
+	if got := hex.EncodeToString(sum[:]); got != params.EvidenceHash {
+		t.Fatalf("evidence_hash is not sha256 of the documented preimage: got %s, want %s", params.EvidenceHash, got)
+	}
 }
 
 func TestPreimageIsStable(t *testing.T) {
