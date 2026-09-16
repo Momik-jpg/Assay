@@ -66,6 +66,27 @@ see [docs/deployment.md](docs/deployment.md).
 
 Run `make fmt` before committing; CI enforces `gofmt -l` being empty.
 
+### The merge gate
+
+CI runs a merge gate on every PR: if the PR touches a **maintainer-owned
+safety-critical path** — the [severity model](docs/severity-model.md), the
+[evidence_hash encoding](docs/contract-interface.md), the contract's
+fail-closed logic, the reputation check — or a dependency file, the gate holds
+and a maintainer reviews before merge. Docs- and test-only PRs pass
+automatically. The owned paths are listed, with reasons, in
+`scripts/merge-gate.sh`.
+
+Verify your PR against the gate before opening it:
+
+```sh
+make verify-gate BASE=main HEAD=HEAD
+```
+
+The checklist it prints (also in the PR template) covers the part CI cannot
+check: no unjustified dependency, no threshold moved without a reason
+traceable to the attestation run, nothing published that the evidence does
+not support.
+
 Tests must not require network access. Fetchers are interfaces; tests use
 fixtures captured from real responses under `internal/*/testdata/`. When you
 capture a new fixture, note the date and the URL it came from.

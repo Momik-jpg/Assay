@@ -12,7 +12,7 @@ CONTRACT_ID ?= CBK4FBIHMDTXCUPE4E3ZDVSFJSCY5FJETTKNIQPN4LFJIKKIBLKIXQ73
 
 .PHONY: all build test cover lint fmt vet run clean \
 	contract-test contract-lint contract-build \
-	build-contract deploy-testnet attest read
+	build-contract deploy-testnet attest read verify-gate
 
 all: build
 
@@ -93,6 +93,13 @@ read:
 	echo "$(ASSET) -> $$sac"; \
 	stellar contract invoke --id $(CONTRACT_ID) --source-account $(SOURCE) --network $(NETWORK) \
 		--send=no -- get_safety --asset "$$sac"
+
+# Runs the merge gate against a commit range, the same script CI runs on every
+# PR. Verify a change offline before opening the PR:
+#   make verify-gate BASE=main HEAD=HEAD
+verify-gate:
+	@test -n "$(BASE)" || { echo 'usage: make verify-gate BASE=<sha-or-ref> HEAD=<sha-or-ref>'; exit 2; }
+	./scripts/merge-gate.sh "$(BASE)" "$(HEAD)"
 
 clean:
 	rm -f $(BINARY) coverage.out coverage.html

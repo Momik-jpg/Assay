@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# The Assay merge gate.
+#
+# Fails when a pull request touches a maintainer-owned safety-critical path or
+# a dependency file, so branch protection can hold the PR for review instead of
+# letting CI green-tick it through. A PR touching only docs or tests passes.
+#
+# This is a script rather than inline CI YAML so it can be verified offline
+# against real commit ranges before it is trusted against a real PR:
+#
+#   scripts/merge-gate.sh BASE HEAD        # e.g. scripts/merge-gate.sh origin/main HEAD
+#
+# Exit codes: 0 the gate passes; 1 a maintainer-owned path or dependency file
+# changed; 2 usage/argument error.
+
+set -u
+
+BASE=${1:-}
+HEAD=${2:-}
+if [ -z "$BASE" ] || [ -z "$HEAD" ]; then
+    echo "usage: $0 BASE HEAD" >&2
+    exit 2
+fi
+for rev in "$BASE" "$HEAD"; do
+    if ! git rev-parse --verify --quiet "$rev^{commit}" >/dev/null; then
+        echo "merge-gate: $rev is not a commit I can resolve" >&2
+        exit 2
+    fi
+done
+
+# Maintainer-owned paths. Changing any of these changes what an on-chain gate
+# will admit or how a verdict is derived, so they are held for review rather
+# than auto-merged. Each entry says why it is owned.
+CRITICAL_PATHS=(
+    "docs/severity-model.md"                                  # the severity rules; every downstream gate trusts them
+    "docs/contract-interface.md"                              # the documented ABI and evidence_hash encoding
+    "internal/attest/attest.go"                               # computes evidence_hash; a change here breaks reproducibility
+    "assay-contracts/contracts/safety-registry/src/lib.rs"    # the contract's fail-closed logic and ABI constants
+    "assay-contracts/contracts/example-gate/src/lib.rs"       # the published integration example
+    "internal/mechanics/check_reputation.go"                  # the only check that can raise severity
+    "internal/mechanics/eval.go"                              # pins judgment to the eval fixtures
+)
+
+# Dependency files. A new Go module or Rust crate is a decision, not a side
+# effect: it adds supply-chain trust that the registry's threat model did not
+# ask for. The invariant is "no third-party dependency without a maintainer
+# deciding it is warranted", so dependency changes hold the gate too.
+DEPS=(
+    "go.mod"
+    "go.sum"
+    "assay-contracts/Cargo.toml"
+    "assay-contracts/Cargo.lock"
+)
+
+path_changed() {
+    # git diff --quiet exits 1 when there ARE differences.
+    ! git diff --quiet "$BASE" "$HEAD" -- "$1"
+}
+
+HITS=()
+for path in "${CRITICAL_PATHS[@]}"; do
+    if path_changed "$path"; then
+        HITS+=("$path")
+    fi
+done
+
+DEPS_CHANGED=()
+for path in "${DEPS[@]}"; do
+    if path_changed "$path"; then
+        DEPS_CHANGED+=("$path")
+    fi
+done
+
+if [ ${#HITS[@]} -gt 0 ]; then
+    echo "merge-gate: this PR touches maintainer-owned safety-critical paths and needs review before merge:"
+    for path in "${HITS[@]}"; do
+        echo "  $path"
+    done
+    echo
+    echo "Merge it only after a maintainer has reviewed the change. If the change is"
+    echo "intentional and reviewed, an administrator merge bypass documents that."
+    exit 1
+fi
+
+if [ ${#DEPS_CHANGED[@]} -gt 0 ]; then
+    echo "merge-gate: dependency files changed:"
+    for path in "${DEPS_CHANGED[@]}"; do
+        echo "  $path"
+    done
+    echo
+    echo "A new third-party dependency (Go or Rust) needs a maintainer decision first:"
+    echo "is it warranted, is it maintained, and does the registry's threat model"
+    echo "inherit its trust? Hold for review like a maintainer-owned path."
+    exit 1
+fi
+
+echo "merge-gate: no maintainer-owned paths and no dependency files touched."
+echo
+echo "The PR author confirms (the checklist is also in the PR template):"
+echo "  [ ] No new third-party dependency was added."
+echo "  [ ] No severity threshold moved without a reason traceable to the attestation run."
+echo "  [ ] No verdict was published that the evidence does not support."
+echo "  [ ] Tests pass locally: go test ./... && (cd assay-contracts && cargo test)"
+exit 0
