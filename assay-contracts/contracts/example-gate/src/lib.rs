@@ -48,12 +48,34 @@ pub const MECH_AUTH_REVOCABLE: u32 = 1 << 1;
 
 /// Mechanics this gate refuses outright, whatever the severity number says.
 ///
-/// Gating on the bitset rather than on severity alone is the point of the
-/// example. Severity is a single ordered number and answers "how bad"; the
-/// bitset answers "which power", and a contract usually has an opinion about a
+/// Severity is a single ordered number and answers "how bad"; the bitset
+/// answers "which power", and a contract usually has an opinion about a
 /// specific power. A custodial balance cannot survive confiscation or a freeze,
 /// so both bits are refused here regardless of how the levels are ordered.
 pub const REFUSED_MECHANICS: u32 = MECH_CLAWBACK_ENABLED | MECH_AUTH_REVOCABLE;
+
+/// The severity ceiling, checked *in addition to* [`REFUSED_MECHANICS`].
+///
+/// Both are necessary and neither is redundant, which is the whole lesson of
+/// this example. They catch disjoint things:
+///
+/// - `USDC` is severity 2 with `auth_revocable` set. The ceiling admits it;
+///   the mask refuses it. Without the mask, a freeze-capable issuer gets in.
+/// - `DOGE` is severity 4 with flags `48` — `domain_unverified | blocklisted`
+///   and **no capability bits at all**, because its issuer genuinely cannot
+///   freeze or confiscate. The mask computes `48 & 6 == 0` and admits it; the
+///   ceiling refuses it. Without the ceiling, a known scam gets in.
+///
+/// That second case is not a hypothetical. This contract shipped without the
+/// ceiling and admitted `DOGE` on testnet.
+///
+/// The asymmetry is structural rather than accidental. Reputation escalation
+/// raises severity and sets `blocklisted`; it must never set a capability bit,
+/// because capability bits describe what an issuer *can do* and a scam listing
+/// is not a capability. So a mask over capability bits cannot see escalation,
+/// by construction — and any gate that reads only the mask is blind to half
+/// the severity model.
+pub const MAX_SEVERITY: u32 = 2;
 
 /// How stale an attestation may be before this gate stops trusting it.
 ///
@@ -85,6 +107,12 @@ pub enum Error {
     AttestationStale = 2,
     /// The issuer holds a power in [`REFUSED_MECHANICS`].
     IssuerCanTakeIt = 3,
+    /// Severity exceeds [`MAX_SEVERITY`]. Kept distinct from
+    /// [`Self::IssuerCanTakeIt`] because the two mean different things to a
+    /// caller: one says the issuer can take your balance, the other says
+    /// someone has affirmatively identified this asset as malicious. A client
+    /// that cannot tell them apart cannot explain either.
+    SeverityTooHigh = 4,
 }
 
 #[contract]
@@ -150,6 +178,13 @@ impl ExampleGate {
 
         if env.ledger().timestamp().saturating_sub(safety.attested_at) > MAX_ATTESTATION_AGE {
             return Err(Error::AttestationStale);
+        }
+
+        // Severity ceiling. Without this, an asset that is critical purely by
+        // reputation — no capability bits set — passes the mask below and is
+        // admitted. See DOGE in the module docs and docs/integrating.md.
+        if safety.severity > MAX_SEVERITY {
+            return Err(Error::SeverityTooHigh);
         }
 
         if safety.flags & REFUSED_MECHANICS != 0 {

@@ -74,7 +74,7 @@ Severity `0..=4` is the same information collapsed to one ordered number:
 
 **Gate on the bitset *and* on severity. Neither alone is enough.** Severity
 answers "how bad"; the bitset answers "which power". They fail in opposite
-directions, and both failures are live on the current deployment:
+directions, and both failures are reachable with the assets attested today:
 
 - **Severity alone is too coarse.** `USDC` is attested at severity `2` with
   flags `18` (`auth_revocable | domain_unverified`). A gate reading
@@ -89,10 +89,13 @@ directions, and both failures are live on the current deployment:
   `auth_revocable | auth_clawback_enabled` computes `48 & 6 == 0` and **admits
   a known scam.**
 
-That second case is not hypothetical either: the deployed example gate has this
-bug, and `would_admit` returns `true` for DOGE today. Tracked as
-[#26](https://github.com/use-assay/Assay/issues/26); the example and this
-section are being corrected together.
+That second case was not hypothetical: the example gate shipped without the
+ceiling and admitted DOGE on testnet. The source now carries the ceiling, with
+a regression test reproducing the DOGE scenario
+(`critical_by_reputation_without_capability_bits_is_refused`). The **deployed
+instance still runs the pre-fix wasm** until it is rebuilt and redeployed —
+[#26](https://github.com/use-assay/Assay/issues/26) stays open for that
+redeploy — so the live-result block below still shows the old behaviour.
 
 The reason is structural. Reputation escalation raises `severity` and sets
 `blocklisted`; it does not set a capability bit, and it must not — capability
@@ -240,15 +243,16 @@ stellar contract invoke --id $GATE --source-account your-key --network testnet -
 # DOGE — attested critical (severity 4), but no capability bits
 stellar contract invoke --id $GATE --source-account your-key --network testnet --send=no \
   -- would_admit --asset CDUV37BUTYKKWNGECZZNRYMM7JIQYYWAI7L2TPTXWQAEMIPG4SXRBRPD
-# true   <-- WRONG, and left here deliberately: this is issue #26
+# true   <-- the DEPLOYED gate's bug (issue #26); the fixed source refuses this
 ```
 
-That last result is the deployed example's bug, not a quirk of the asset. It
+That last result is the deployed instance's bug, not a quirk of the asset. It
 masks capability bits only, so a critical-by-reputation asset walks through.
 The registry itself answers correctly — `is_safe(DOGE, 2, 0)` returns `false` —
-so the fault is in the example, and the code in section 3 above is the
-corrected version. It is shown rather than quietly patched because an
-integrator who copied the earlier version needs to know.
+so the fault was in the example. The source is fixed and carries a regression
+test for exactly this scenario; the deployed wasm lags until redeployed
+([#26](https://github.com/use-assay/Assay/issues/26)). If you copied the earlier
+version, add the severity ceiling from section 3.
 
 Submitting a `deposit` rather than simulating gives you the reason: `USDZ`
 reverts with `Error(Contract, #3)` (`IssuerCanTakeIt`) and the unattested asset

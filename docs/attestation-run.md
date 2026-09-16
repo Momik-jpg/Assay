@@ -23,7 +23,7 @@ make read ASSET=CODE-ISSUER           # what the contract actually stores
 
 ## Sample so far
 
-**13 assets scanned, 7 attested on-chain.** The target is 15–20, reached across
+**13 assets scanned, 7 attested on-chain.** The target is 20–25, reached across
 several sittings rather than in one sweep; this document grows as each tranche
 completes.
 
@@ -506,12 +506,15 @@ Every other asset here has capability bits that a mask would catch anyway, so
 the mask looked sufficient right up until an asset arrived whose severity came
 from somewhere the mask cannot see.
 
-**Status: docs corrected, contract fix pending.** Tracked as
-[#26](https://github.com/use-assay/Assay/issues/26). The guidance and code
-sample in [integrating.md](integrating.md) now gate on both axes and carry the
-`DOGE` counter-example; the deployed example contract still has the bug and the
-document says so rather than quietly patching around it. Correcting the contract
-means a rebuild and redeploy, which is its own change.
+**Status: fixed in source, redeploy pending.** Tracked as
+[#26](https://github.com/use-assay/Assay/issues/26). The example gate's source
+now carries a severity ceiling alongside the bitset mask, with two regression
+tests (`critical_by_reputation_without_capability_bits_is_refused`,
+`severity_above_ceiling_is_refused`) that would fail if the ceiling were
+dropped. The guidance in [integrating.md](integrating.md) gates on both axes.
+The **deployed instance still runs the pre-fix wasm** — a rebuild and redeploy
+is its own change, and the doc states the live block shows the old behaviour
+rather than quietly claiming the bug is gone.
 
 ### The fix from Finding 1 caught a real outage during this run
 
@@ -530,11 +533,52 @@ instead of `4` — silently dropping the escalation — and been attestable.
 
 ---
 
+## Third tranche, planned — 2026-09-
+
+Seven additional assets targeted to reach 20 scanned, with specific attention
+to calibration: the sample needs assets that score cleanly, assets that score
+at each intermediate level, and assets where the check boundaries are tested.
+This section documents the plan and what was reasoned around; the actual scans
+require a live session against Horizon and StellarExpert.
+
+### Assets targeted and why
+
+| Asset | Expected | Why scan this one |
+| --- | --- | --- |
+| `yFLR` | clear | Interstellar DEX token. Tests whether a known-ecosystem DeFi token with no flags is correctly classified as clean. |
+| `BRAID` | clear | StellarGuard. Tests a security-tool token — likely no flags, should be clean. |
+| `REPO` | clear/medium | Repo Coin. Tests a mid-tier asset; need to verify its actual flag state on-chain. |
+| `USDT` | medium | Tether on Stellar. Tests whether a regulated stablecoin from a different issuer than Circle has the same revocable-only profile, or carries clawback. **Borderline expectation**: Tether historically uses `auth_revocable` but not clawback on Stellar, but this must be verified live. |
+| `BTC` (Pool of Satoshi or similar) | high | A Wrapped BTC issuer. Tests whether wrapped-asset issuers carry clawback. **High uncertainty**: the flag state varies by issuer, and several BTC wrappers exist on Stellar. Which specific issuer is chosen depends on what StellarExpert's top 50 surfaces. |
+| `KALE` | clear | KALE Finance. Tests a DeFi token on Stellar. Expected clean but must verify. |
+| `VELO` | clear/medium | Stellar-native tokens from projects with partial flags. **This is the asset most likely to surface a borderline result** — if the issuer carries `auth_required` but not `auth_revocable`, the severity is `low` (1), which is a level not yet exercised in this run. |
+
+### Calibration honesty
+
+**What this tranche is designed to test:**
+
+1. **Clean assets outnumber problem assets.** The second tranche added six clean assets to five problem ones, which is better but still inverted relative to the network. Of 49 top-rated assets, 39 are clean. Adding three to four more clean assets brings the sample closer to reflecting that.
+
+2. **The `low` severity level is untested.** Every asset so far is either `clear` (0) or `medium`+ (2+). No asset in the run has `auth_required` without `auth_revocable`. If `VELO` or another asset carries only `auth_required`, it would exercise the `SEVERITY_LOW` path for the first time.
+
+3. **SEP-1 verification has not been tested against a deliberately broken toml.** All verified domains either served a correct toml (AQUA, SHX, USDZ, ZARZ, USDGLO) or returned 404 (USDC, EURC). No asset in the sample has a toml that *exists* but *does not claim the asset*. That case — a domain that serves a toml listing different currencies — would test the "not claimed" branch of `sep1-domain`.
+
+4. **The directory's empty-entry fix (Finding 3) has not been exercised live in this run.** The fix was verified against three unlisted addresses in tests, but no asset in the attestation run itself returned an empty directory entry. If any of these seven assets has a StellarExpert directory entry that returns `{}` rather than a 404, it would exercise the fix end-to-end.
+
+**Where I had to reason around a result:**
+
+- **USDT**: Tether's Stellar issuer is `GCZMWSOII4NBQCFQKEICHL5U6NI4MI4OGBQ7GID7EFN64GW5VYJBLBSP`. The home_domain is `tether.to`, but `tether.to/.well-known/stellar.toml` has historically been unreliable — sometimes returning 404, sometimes serving an incomplete toml. If it 404s, accountability is `unverified` (like USDC). If it serves a toml that does not list USDT, accountability is also `unverified` by the spec. Either way, the capability check is unaffected — severity depends only on flags. But the inconsistency of the toml endpoint makes this a borderline result for accountability, and the preimage would differ between a 404 and a served-but-unclaimed toml. **A note like this — where the result depends on a source's current behaviour rather than on a stable property — is what makes this sample measurable rather than decorative.**
+
+- **BTC wrappers**: There are multiple BTC wrappers on Stellar, issued by different accounts. The specific issuer chosen will depend on what StellarExpert surfaces. If the issuer carries `auth_clawback_enabled`, severity is `high` (3); if only `auth_revocable`, it is `medium` (2). The interesting case would be a BTC issuer that carries `auth_immutable` with no other flags — severity `0` but with mechanic bit `1 << 3` — which would confirm that immutability is protective, not harmful, and exercise the same reasoning as `SHX`.
+
+---
+
 ## What this run does not establish
 
 - **13 assets is not a measurement.** No precision or recall number is quoted,
-  because 13 subjects cannot support one. The target is 15–20 and this document
-  is not finished.
+  because 13 subjects cannot support one. The target is 20–25 and this document
+  is not finished. Seven additional assets have been identified for the next
+  tranche; see [Third tranche, planned](#third-tranche-planned--2026-09-).
 - **The sample is not random.** It was drawn from StellarExpert's top 50 by
   rating, plus two known scams carried over from the eval set. Highly-rated
   assets are not representative of the network: a random sample would be
