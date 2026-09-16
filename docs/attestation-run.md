@@ -11,6 +11,7 @@ produces it. Nothing here is reconstructed from an earlier write-up.
 - **Example gate** `CANO57JRGTATHGLM26TWYPIXERSPVI5R52H33K7ZUJGGOEOVVZA44W3U` (testnet)
 - **First tranche attested** 2026-08-15 · **re-verified** 2026-09-05
 - **Second tranche** 2026-09-05
+- **Third tranche** 2026-09-16
 
 To reproduce any row:
 
@@ -23,14 +24,17 @@ make read ASSET=CODE-ISSUER           # what the contract actually stores
 
 ## Sample so far
 
-**13 assets scanned, 7 attested on-chain.** The target is 20–25, reached across
+**18 assets scanned, 10 attested on-chain.** The target is 20–25, reached across
 several sittings rather than in one sweep; this document grows as each tranche
 completes.
 
-The first four were attested 2026-08-15. The rest were added 2026-09-05, chosen
+The first four were attested 2026-08-15. Nine more were added 2026-09-05, chosen
 deliberately to include assets expected to come back **clean** — a scanner
 measured only on assets with problems is uncalibrated, and the original four
-were three-quarters bad news.
+were three-quarters bad news. Five more were scanned 2026-09-16; that tranche
+went looking for clean assets and found counterfeiters instead, which turned
+out to be the more honest calibration. See
+[the third tranche](#third-tranche-2026-09-16).
 
 | Asset | Severity | Base | Escalated | Accountability | Flags | On-chain |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -47,6 +51,11 @@ were three-quarters bad news.
 | `USDGLO` | 3 high | 3 | no | verified | `6` | yes |
 | `BERKSHIRE` | 4 critical | 3 | **yes** | unverified | `54` | yes |
 | `DOGE` | 4 critical | **0** | **yes** | unverified | `48` | yes |
+| `VELO` | 0 clear | 0 | no | unknown | `16` | yes |
+| `KALE` — kalepail.com issuer | 0 clear | 0 | no | unverified | `16` | yes |
+| `KALE` — xlmcash.tech issuer | 4 critical | 0 | **yes** | unverified | `48` | no |
+| `REPO` | 4 critical | 0 | **yes** | unverified | `48` | yes |
+| `yFLR` — flare.claims issuer | *refused* | — | — | — | — | no |
 
 Not every scan is attested. Each attestation is a real transaction, and the
 value of this document is the scan record; the on-chain subset is chosen to
@@ -533,52 +542,120 @@ instead of `4` — silently dropping the escalation — and been attestable.
 
 ---
 
-## Third tranche, planned — 2026-09-
+## Third tranche, 2026-09-16
 
-Seven additional assets targeted to reach 20 scanned, with specific attention
-to calibration: the sample needs assets that score cleanly, assets that score
-at each intermediate level, and assets where the check boundaries are tested.
-This section documents the plan and what was reasoned around; the actual scans
-require a live session against Horizon and StellarExpert.
+The plan for this tranche (five assets, chosen for calibration) survives in the
+notes below rather than being silently rewritten — several of its expectations
+did not survive contact with the live network, and the reasons are the most
+instructive material this run has produced.
 
-### Assets targeted and why
+| Asset | Issuer | Result | On-chain |
+| --- | --- | --- | --- |
+| `VELO` | `GDM4RQUQ…ARM2M5M` (`velo.org` per directory) | clear, accountability `unknown` — the first asset in the run with **no `home_domain` at all** | yes |
+| `KALE` — kalepail.com issuer | `GAKJM27Q…VEWUNSYCEF` | clear, verified directory entry (`kalepail.com`), but the account advertises `chainx.site` — see below | yes |
+| `KALE` — xlmcash.tech issuer | `GBEQXW5HH…2QYUXRP` | **critical by escalation, base clear** — directory tags it `malicious`, domain `xlmcash.tech` on the malicious-domain blocklist | no |
+| `REPO` | `GA2BVQLG…O36EAZR` | **critical by escalation, base clear** — the *blocklist* contains `hiddenstellar.com`; the directory 404s for the issuer | yes |
+| `yFLR` | `GAIUD5NP…ENQJYFLR` | **the scanner refused to produce a verdict** — see below | refused |
 
-| Asset | Expected | Why scan this one |
-| --- | --- | --- |
-| `yFLR` | clear | Interstellar DEX token. Tests whether a known-ecosystem DeFi token with no flags is correctly classified as clean. |
-| `BRAID` | clear | StellarGuard. Tests a security-tool token — likely no flags, should be clean. |
-| `REPO` | clear/medium | Repo Coin. Tests a mid-tier asset; need to verify its actual flag state on-chain. |
-| `USDT` | medium | Tether on Stellar. Tests whether a regulated stablecoin from a different issuer than Circle has the same revocable-only profile, or carries clawback. **Borderline expectation**: Tether historically uses `auth_revocable` but not clawback on Stellar, but this must be verified live. |
-| `BTC` (Pool of Satoshi or similar) | high | A Wrapped BTC issuer. Tests whether wrapped-asset issuers carry clawback. **High uncertainty**: the flag state varies by issuer, and several BTC wrappers exist on Stellar. Which specific issuer is chosen depends on what StellarExpert's top 50 surfaces. |
-| `KALE` | clear | KALE Finance. Tests a DeFi token on Stellar. Expected clean but must verify. |
-| `VELO` | clear/medium | Stellar-native tokens from projects with partial flags. **This is the asset most likely to surface a borderline result** — if the issuer carries `auth_required` but not `auth_revocable`, the severity is `low` (1), which is a level not yet exercised in this run. |
+On-chain records (all three written 2026-09-16, spaced minutes apart):
 
-### Calibration honesty
+| Asset | On-chain | `evidence_hash` | Attest tx |
+| --- | --- | --- | --- |
+| `VELO` | `severity 0`, `flags 16`, `attested_at 1789521172` (2026-09-16T01:12:52Z) | `3ed390fe…f49e02a` | `dcae1dd810f3e310e71e006f175857b12a8925e173e6d62d9f023ee91582e85b` |
+| `REPO` | `severity 4`, `flags 48`, `attested_at 1789521267` (2026-09-16T01:14:27Z) | `4dacaa0f…69943cede` | `a6b5fa3058c3f7f25cbf45b22603f721de7767e4b853e644932e72215eb940e0` |
+| `KALE` | `severity 0`, `flags 16`, `attested_at 1789521352` (2026-09-16T01:15:52Z) | `874087f2…220fdc6112` | `db36e5ece6c52d01287da2bdb9722affab84047d58ec21a332edd9d1e7392c90` |
 
-**What this tranche is designed to test:**
+### Where the tranche plan was wrong, and what that exposed
 
-1. **Clean assets outnumber problem assets.** The second tranche added six clean assets to five problem ones, which is better but still inverted relative to the network. Of 49 top-rated assets, 39 are clean. Adding three to four more clean assets brings the sample closer to reflecting that.
+**The plan expected `yFLR` and `BRAID` to be clean assets. `BRAID` does not
+exist on mainnet at all** — Horizon returns no records for the code. The plan
+was written from a name list, not from the ledger, and one of its five rows
+pointed at nothing. Recorded here rather than quietly dropped.
 
-2. **The `low` severity level is untested.** Every asset so far is either `clear` (0) or `medium`+ (2+). No asset in the run has `auth_required` without `auth_revocable`. If `VELO` or another asset carries only `auth_required`, it would exercise the `SEVERITY_LOW` path for the first time.
+**`USDT` was dropped after discovery, and the discovery itself is the finding.**
+There are **351 assets coded `USDT` on mainnet and not one of them is Tether**.
+Tether is not in the curated directory under any tether-related name. The top
+issuers by adoption carry no authorization flags and home domains like
+`dead.apay.io`, `stellarstable.co`, `tether-stellar.com` — code-squatters, all
+capability-`clear` by the letter of the model. The plan also carried an issuer
+string for Tether (`GCZMWSOII4NBQCFQKEICHL5U6NI4MI4OGBQ7GID7EFN64GW5VYJBLBSP`)
+that is **not a valid Stellar address at 55 characters** — the directory API
+rejects it with 400. A wrong fact in a plan is exactly the kind of thing this
+document exists to catch; this one was caught before it could become an
+attestation, but only because the plan was re-derived from live sources first.
 
-3. **SEP-1 verification has not been tested against a deliberately broken toml.** All verified domains either served a correct toml (AQUA, SHX, USDZ, ZARZ, USDGLO) or returned 404 (USDC, EURC). No asset in the sample has a toml that *exists* but *does not claim the asset*. That case — a domain that serves a toml listing different currencies — would test the "not claimed" branch of `sep1-domain`.
+### The two-scam-codes tranche: reputation sources disagreeing about *which* source
 
-4. **The directory's empty-entry fix (Finding 3) has not been exercised live in this run.** The fix was verified against three unlisted addresses in tests, but no asset in the attestation run itself returned an empty directory entry. If any of these seven assets has a StellarExpert directory entry that returns `{}` rather than a 404, it would exercise the fix end-to-end.
+The second tranche ended with "the blocklist did not flag either confirmed
+scam — escalation came entirely from the directory." This tranche produced the
+exact inverse, twice:
 
-**Where I had to reason around a result:**
+- **`REPO`**: the directory **404s** for `GA2BVQLG…` — no entry at all — but
+  the malicious-domain **blocklist contains `hiddenstellar.com`**, the issuer's
+  `home_domain`. Escalation came entirely from the blocklist.
+- **`KALE` (xlmcash.tech issuer)**: the directory **does** tag it `malicious`
+  (name "Scam"), and the blocklist independently contains `xlmcash.tech`. Both
+  sources caught this one — the only asset in the run where the two agree.
 
-- **USDT**: Tether's Stellar issuer is `GCZMWSOII4NBQCFQKEICHL5U6NI4MI4OGBQ7GID7EFN64GW5VYJBLBSP`. The home_domain is `tether.to`, but `tether.to/.well-known/stellar.toml` has historically been unreliable — sometimes returning 404, sometimes serving an incomplete toml. If it 404s, accountability is `unverified` (like USDC). If it serves a toml that does not list USDT, accountability is also `unverified` by the spec. Either way, the capability check is unaffected — severity depends only on flags. But the inconsistency of the toml endpoint makes this a borderline result for accountability, and the preimage would differ between a 404 and a served-but-unclaimed toml. **A note like this — where the result depends on a source's current behaviour rather than on a stable property — is what makes this sample measurable rather than decorative.**
+So across the run: BERKSHIRE and DOGE were directory-only, REPO was
+blocklist-only, this KALE was both. Neither source is individually complete in
+*either direction*, and which one carries the signal is not predictable in
+advance. That is now demonstrated on four assets rather than argued.
 
-- **BTC wrappers**: There are multiple BTC wrappers on Stellar, issued by different accounts. The specific issuer chosen will depend on what StellarExpert surfaces. If the issuer carries `auth_clawback_enabled`, severity is `high` (3); if only `auth_revocable`, it is `medium` (2). The interesting case would be a BTC issuer that carries `auth_immutable` with no other flags — severity `0` but with mechanic bit `1 << 3` — which would confirm that immutability is protective, not harmful, and exercise the same reasoning as `SHX`.
+**`KALE` also exposed a two-domain issuer.** The clean kalepail.com issuer
+(`GAKJM27Q…`) is listed in the directory under `kalepail.com` — but its
+account's `home_domain` is `chainx.site`, a domain serving no readable toml.
+The same entity is presenting different domains to different sources. This is
+precisely the mismatch class [#4](https://github.com/use-assay/Assay/issues/4)
+tracks (directory domain vs advertised domain) — this asset is its first live
+specimen in the run. The scan still reports `clear`: capability is genuinely
+empty, and the directory's claim is recorded as attributed evidence. Nothing
+was bent to make the result cleaner than the evidence.
+
+### A verdict Assay refused to produce
+
+`yFLR`'s most-adopted issuer (`GAIUD5NP…`, 260 authorized accounts, directory
+entry "SCAM-Counterfeiter") **has no issuer account on Horizon** — `/accounts/`
+returns 404 while `/assets` still reports the supply. Horizon is telling two
+stories about the same asset. The scanner **hard-refused**:
+
+```
+assay: horizon: not found: /accounts/GAIUD5NPLO2L6WWA7KLH4LIF54BBX24ELW3JSEINPVDRXZRIENQJYFLR
+```
+
+No severity, no report, nothing attestable. That is the invariant holding on a
+case the run had never hit: a vanished issuer is not a `clear` verdict, and
+nothing in the report path will invent one. It is also, unlike Finding 1, a
+case where the refusal is the *entire* correct output — there is no partial
+answer to salvage. Left unattested by construction.
+
+### The `unknown` accountability branch finally exercised
+
+`VELO`'s issuer advertises **no `home_domain` at all** — distinct from
+`unverified` (a domain exists, reciprocal verification failed), and it had
+never appeared in this run despite being a defined branch of the model. The
+sample now covers all three accountability values end to end.
+
+**Where a result felt borderline:** `KALE`'s two-domain issuer is the case this
+tranche felt least comfortable publishing as `clear`. The two-domain mismatch
+is not scored by any check — it lives only in the prose reasoning — and a
+consumer reading only severity and flags would never see it. Publishing it as
+`clear` with the mismatch documented is honest to the evidence; *not*
+documenting it would not have been. That gap — structural signals visible to a
+human reader but not to the severity number — is exactly what
+[#4](https://github.com/use-assay/Assay/issues/4) is for, and this asset is now
+its concrete motivating case.
 
 ---
 
 ## What this run does not establish
 
-- **13 assets is not a measurement.** No precision or recall number is quoted,
-  because 13 subjects cannot support one. The target is 20–25 and this document
-  is not finished. Seven additional assets have been identified for the next
-  tranche; see [Third tranche, planned](#third-tranche-planned--2026-09-).
+- **18 assets is not a measurement.** No precision or recall number is quoted,
+  because 18 subjects cannot support one. The target is 20–25 and this document
+  is not finished. This tranche also showed *how* the sample grows wrong: two of
+  the planned subjects (BRAID, USDT) did not survive contact with the ledger —
+  see [the third tranche](#third-tranche-2026-09-16). The next tranche verifies
+  each subject against live sources before the plan is written, not after.
 - **The sample is not random.** It was drawn from StellarExpert's top 50 by
   rating, plus two known scams carried over from the eval set. Highly-rated
   assets are not representative of the network: a random sample would be
@@ -604,7 +681,9 @@ require a live session against Horizon and StellarExpert.
 - **Attested 2026-08-15 and 2026-09-05.** Issuers can change flags at any time.
   These attestations are exactly as fresh as their `attested_at`, and nothing
   refreshes them on a schedule.
-- **Four findings in 13 assets.** Two are fixed, one has its docs corrected and
-  its code pending, one is deferred with a version bump behind it. That rate
-  should be read as a statement about how much of this had been exercised
-  before, not as a claim that the remainder is now sound.
+- **Four findings in the first 13 assets.** Two are fixed, one is fixed in
+  source with its redeploy pending, one is deferred with a version bump behind
+  it. The next five subjects produced no new findings in the scanner itself —
+  but three failures of the *plan*, one refused verdict, and the first live
+  specimen of a known gap (#4). A quiet tranche is not automatically a
+  reassuring one.
