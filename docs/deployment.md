@@ -36,6 +36,14 @@ deployed alongside it, wired to the registry above:
 | Deploy gate | `a6c4f642af24f32ec116a8a8918153cacafb86f9ac33c73dfb942dce73d5897f` |
 | Upload gate wasm (redeploy) | `943c90b5d710499aa489b4ccb0c257447efb049859ef4401e10dc4e316e6d832` |
 | Deploy gate (redeploy, #26 fix) | `2137605713924608aa801c560a9121534efd330201e6e174a33da51190e7bfa4` |
+| Deploy gate (duplicate, unused) | `5fde49952a83f1acbe5b04a302302e0449f3348a49105d67babb8d1a5418b6c6` |
+
+The last row is a mistake, recorded rather than hidden. Two working sessions
+redeployed the same fixed wasm six minutes apart, so a second instance exists at
+`CCMA2SW23WUWTJGSC2MTUZVYWROMVTT42NLPTBCOAHGM632KEMNL5N3G`, bound to the same
+registry and running the same wasm (`ca40172e…`; it reused the upload above).
+Soroban contracts cannot be deleted. It behaves identically and nothing refers
+to it; `CAL5VYSW…` is the canonical instance.
 
 Any of these can be read at
 `https://stellar.expert/explorer/testnet/tx/<hash>`.
@@ -150,27 +158,50 @@ And through the deployed example gate, which is a real cross-contract call
 rather than a direct read. The gate was redeployed on 2026-09-16 with the
 severity ceiling that [#26](https://github.com/use-assay/Assay/issues/26)
 tracked (deploy tx `21376057…7bfa4`); the results below are against the new
-instance. Because nothing re-attests, the August attestations are now past the
-gate's own 24-hour freshness window — which makes this the first live exercise
-of the stale branch as well:
+instance. Assets whose attestations are older than the gate's 24-hour window
+are refused as stale, which exercises that branch live as well:
 
 | Asset | `would_admit` | `deposit` |
 | --- | --- | --- |
-| `KALE` (fresh, clear) | `true` | succeeded, balance credited (`e3d2825c8e5a6615236904643873f0f325329c8a112ae338272a34abeab2f592`) |
-| `REPO` (fresh, critical) | `false` | reverts `Error(Contract, #4)` — `SeverityTooHigh` |
-| `DOGE` (critical by reputation, attested August) | `false` | reverts `Error(Contract, #2)` — `AttestationStale` |
-| `AQUA` (attested August) | `false` | reverts `Error(Contract, #2)` — `AttestationStale` |
-| `USDZ` (attested August, clawback) | `false` | reverts `Error(Contract, #2)` — `AttestationStale` |
-| unattested (`native`) | `false` | reverts `Error(Contract, #1)` — `NotAttested` |
+| `KALE` (clear, attested 2026-09-16) | `true` | succeeded, balance credited (`e3d2825c8e5a6615236904643873f0f325329c8a112ae338272a34abeab2f592`) |
+| `AQUA` (clear, re-attested 2026-09-16) | `true` | succeeded, balance credited (`2cb3ce286c6f0874af9e8c86948c2cafad5ef4ef64edf055997595266d3da33f`) |
+| `REPO` (critical, attested 2026-09-16) | `false` | `Error(Contract, #4)` — `SeverityTooHigh` |
+| `DOGE` (critical by reputation, re-attested 2026-09-16) | `false` | `Error(Contract, #4)` — `SeverityTooHigh` |
+| `USDZ` (clawback, attested 2026-08-15) | `false` | `Error(Contract, #2)` — `AttestationStale` |
+| unattested (`native`) | `false` | `Error(Contract, #1)` — `NotAttested` |
 
-The old instance admitted `DOGE`: it masked capability bits only, and DOGE's
-severity `4` comes entirely from reputation, which sets no capability bit.
-`REPO` — attested fresh on 2026-09-16 and critical for the same reason — is
-refused with `#4` by the new instance, which is the ceiling's own branch; DOGE's
-refusal surfaces as `#2` only because its attestation predates the redeploy and
-the freshness check runs first. Either way it is refused. The admit path is
-proven with a submitted transaction rather than a simulation, and the balance
-reads back `1`.
+Refusals fail at simulation, so no transaction is submitted for them; the admit
+path is proven with submitted deposits whose balances read back. Every row
+depends on the gate's 24-hour freshness window, so these results were observed
+on 2026-09-16 and will not reproduce unchanged a day later without
+re-attestation.
+
+### The #26 fix, before and after
+
+The first run of this table found `DOGE` and `AQUA` refused as stale
+(`#2`), because their attestations predated the freshness window — which
+refused `DOGE` for the wrong reason and left the fix itself unobserved on the
+asset that exposed the bug. So both were re-attested from live scans, and the old
+and new instances were queried against the same fresh attestations:
+
+| Re-attestation | Transaction | `attested_at` | `evidence_hash` |
+| --- | --- | --- | --- |
+| `DOGE` | `5012431be06a49f0bdc9b77e274aafaafabc6b30f6a5de535616050617ccd64c` | `1789546342` | `396c9f7c…91647e` (unchanged) |
+| `AQUA` | `595f89b53c897f583132e302ea6f78f1c334ce819423a27c5dd7981174fe39e7` | `1789546357` | `688453bd…61a4a9` (unchanged) |
+
+Both hashes are byte-identical to the original attestations, so the refresh
+changed only `attested_at` — the reproducibility property holding over a month
+for `AQUA`.
+
+| Gate | `AQUA` | `DOGE` |
+| --- | --- | --- |
+| Old, `CANO57JR…` (capability mask only) | admitted | **admitted** — the bug |
+| Fixed, `CAL5VYSW…` (mask + severity ceiling) | admitted | **refused, `#4` `SeverityTooHigh`** |
+
+The old instance admitted `DOGE` because it masked capability bits only, and
+DOGE's severity `4` comes entirely from reputation, which sets no capability bit.
+The old instance is still deployed — contracts cannot be removed — and nothing in
+these docs points to it any more.
 
 ## Redeploying
 

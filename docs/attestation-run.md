@@ -8,7 +8,7 @@ from a live command or an on-chain record, and each section says which command
 produces it. Nothing here is reconstructed from an earlier write-up.
 
 - **Registry** `CBK4FBIHMDTXCUPE4E3ZDVSFJSCY5FJETTKNIQPN4LFJIKKIBLKIXQ73` (testnet)
-- **Example gate** `CANO57JRGTATHGLM26TWYPIXERSPVI5R52H33K7ZUJGGOEOVVZA44W3U` (testnet)
+- **Example gate** `CAL5VYSWLKG367D5IYGI57XH7EMN5PLJ4CD6K3MO2HJBYYKEKPG3NKRX` (testnet, redeployed 2026-09-16 with the [#26](https://github.com/use-assay/Assay/issues/26) ceiling)
 - **First tranche attested** 2026-08-15 · **re-verified** 2026-09-05
 - **Second tranche** 2026-09-05
 - **Third tranche** 2026-09-16
@@ -100,9 +100,10 @@ returns `blocked=false`. Neither lowers the capability severity.
 
 | | |
 | --- | --- |
-| On-chain | `severity 0`, `flags 0`, `attested_at 1786771611` |
+| On-chain | `severity 0`, `flags 0`, `attested_at 1786771611` (first write) |
 | `evidence_hash` | `688453bd22e9b694b9c70659d37526bdae18944645542642008e9d961461a4a9` |
 | Attest tx | `1b6bafc1226570b2415299f5531256716f4d8dc489a9784fcd6ea347d0f63f5f` |
+| Re-attested | 2026-09-16, tx `595f89b53c897f583132e302ea6f78f1c334ce819423a27c5dd7981174fe39e7`, `attested_at 1789546357` — same `evidence_hash`, so only the timestamp moved |
 
 ---
 
@@ -323,6 +324,13 @@ Three were attested on-chain:
 | `DOGE` | `severity 4`, `flags 48`, `attested_at 1788592982` (2026-09-05T07:23:02Z) | `396c9f7c…91647e` | `ac1a89a64159e6ac2e9ed61bd67a79cd1584287cf57d19f9dc188d80e81298a6` |
 | `ARST` | `severity 0`, `flags 0`, `attested_at 1788593012` (2026-09-05T07:23:32Z) | `82a6103f…fccacb` | `f497b91ab84340bcb7418940e620d080c8566e0cdf27346c8d74e165b5d66506` |
 | `USDGLO` | `severity 3`, `flags 6`, `attested_at 1788593047` (2026-09-05T07:24:07Z) | `69b8c4f8…7c27a5` | `6016ed7d908cd20237f114b0cb6778886027ddc8336952acb77ddbeff16caf42` |
+
+`DOGE` was re-attested from a live scan on 2026-09-16 (tx
+`5012431be06a49f0bdc9b77e274aafaafabc6b30f6a5de535616050617ccd64c`,
+`attested_at 1789546342`) so the fixed example gate could be observed refusing it
+through the severity ceiling rather than as stale. The re-scan reproduced
+`396c9f7c…91647e` exactly; the contract now stores the later timestamp. See
+[deployment.md](deployment.md#the-26-fix-before-and-after).
 
 `SHX` is worth a note: `auth_immutable` is set, so it carries mechanic bit
 `1 << 3` while staying severity `0`. That is deliberate — locking the flag set
