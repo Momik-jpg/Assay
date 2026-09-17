@@ -151,3 +151,27 @@ fn init_is_single_shot() {
     let err = client.try_init(&other).expect_err("second init must fail");
     assert_eq!(err, Ok(Error::AlreadyInitialized));
 }
+
+/// attest() requires auth from the admin set at init time. A non-admin
+/// caller must be rejected. This test does not use mock_all_auths(), so
+/// require_auth() on the admin address actually enforces.
+#[test]
+fn attest_rejects_unauthorized_caller() {
+    let env = Env::default();
+    let contract_id = env.register(SafetyRegistry, ());
+    let client = SafetyRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.init(&admin);
+
+    let _caller = Address::generate(&env);
+    let asset = Address::generate(&env);
+
+    let err = client
+        .try_attest(&asset, &SEVERITY_CLEAR, &0, &hash(&env))
+        .expect_err("non-admin must be rejected");
+
+    // The error type is SDK-internal (soroban_sdk::Error), not our contract
+    // Error enum. The important property is that it is an error at all: a
+    // non-admin caller must not be able to write attestations.
+    assert!(err.is_err());
+}

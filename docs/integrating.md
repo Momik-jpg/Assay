@@ -11,9 +11,10 @@ CBK4FBIHMDTXCUPE4E3ZDVSFJSCY5FJETTKNIQPN4LFJIKKIBLKIXQ73
 
 The complete, compiling version of this guide is
 [`contracts/example-gate`](../assay-contracts/contracts/example-gate) — it is a
-workspace crate with tests, built and deployed to testnet at
-`CANO57JRGTATHGLM26TWYPIXERSPVI5R52H33K7ZUJGGOEOVVZA44W3U`. Read
-[deployment.md](deployment.md) for the transaction hashes.
+workspace crate with tests, deployed to testnet at
+`CAL5VYSWLKG367D5IYGI57XH7EMN5PLJ4CD6K3MO2HJBYYKEKPG3NKRX` and redeployed on
+2026-09-16 with the severity ceiling ([#26](https://github.com/use-assay/Assay/issues/26)).
+Read [deployment.md](deployment.md) for the transaction hashes.
 
 ## What you are trusting
 
@@ -74,7 +75,7 @@ Severity `0..=4` is the same information collapsed to one ordered number:
 
 **Gate on the bitset *and* on severity. Neither alone is enough.** Severity
 answers "how bad"; the bitset answers "which power". They fail in opposite
-directions, and both failures are live on the current deployment:
+directions, and both failures are reachable with the assets attested today:
 
 - **Severity alone is too coarse.** `USDC` is attested at severity `2` with
   flags `18` (`auth_revocable | domain_unverified`). A gate reading
@@ -89,10 +90,14 @@ directions, and both failures are live on the current deployment:
   `auth_revocable | auth_clawback_enabled` computes `48 & 6 == 0` and **admits
   a known scam.**
 
-That second case is not hypothetical either: the deployed example gate has this
-bug, and `would_admit` returns `true` for DOGE today. Tracked as
-[#26](https://github.com/use-assay/Assay/issues/26); the example and this
-section are being corrected together.
+That second case was not hypothetical: the example gate shipped without the
+ceiling and admitted DOGE on testnet. The source now carries the ceiling, with
+a regression test reproducing the DOGE scenario
+(`critical_by_reputation_without_capability_bits_is_refused`), and the fixed
+instance was deployed on 2026-09-16 as the fix for
+[#26](https://github.com/use-assay/Assay/issues/26). The live-result block
+below shows the new instance; [deployment.md](deployment.md) has the full
+matrix, including the refusal reasons verified for each branch.
 
 The reason is structural. Reputation escalation raises `severity` and sets
 `blocklisted`; it does not set a capability bit, and it must not — capability
@@ -217,17 +222,17 @@ deploying to; do not copy one across.
 
 ## Trying it against the live deployment
 
-The four attested assets, and one that is deliberately never attested:
+Three attested assets, and one that is deliberately never attested:
 
 ```sh
-GATE=CANO57JRGTATHGLM26TWYPIXERSPVI5R52H33K7ZUJGGOEOVVZA44W3U
+GATE=CAL5VYSWLKG367D5IYGI57XH7EMN5PLJ4CD6K3MO2HJBYYKEKPG3NKRX
 
-# AQUA — attested clear
+# KALE — attested clear on 2026-09-16
 stellar contract invoke --id $GATE --source-account your-key --network testnet --send=no \
-  -- would_admit --asset CDJF2JQINO7WRFXB2AAHLONFDPPI4M3W2UM5THGQQ7JMJDIEJYC4CMPG
+  -- would_admit --asset CCVNR6CGD6NFQG7XC6AVU5HF4YAPVXW5KZJCD73XFKUUO4YZUNEFKU2Z
 # true
 
-# USDZ — attested high, issuer can claw back
+# USDZ — attested high, issuer can claw back (attestation past 24h)
 stellar contract invoke --id $GATE --source-account your-key --network testnet --send=no \
   -- would_admit --asset CAOM5NKBTSGEXTZZKH3STWSFWURMODC3TZ4NS2THN7W5YUDFK3IOHIHU
 # false
@@ -240,19 +245,32 @@ stellar contract invoke --id $GATE --source-account your-key --network testnet -
 # DOGE — attested critical (severity 4), but no capability bits
 stellar contract invoke --id $GATE --source-account your-key --network testnet --send=no \
   -- would_admit --asset CDUV37BUTYKKWNGECZZNRYMM7JIQYYWAI7L2TPTXWQAEMIPG4SXRBRPD
-# true   <-- WRONG, and left here deliberately: this is issue #26
+# false — refused by the severity ceiling (#4). The pre-fix instance
+#         returned true here; that was #26.
 ```
 
-That last result is the deployed example's bug, not a quirk of the asset. It
-masks capability bits only, so a critical-by-reputation asset walks through.
-The registry itself answers correctly — `is_safe(DOGE, 2, 0)` returns `false` —
-so the fault is in the example, and the code in section 3 above is the
-corrected version. It is shown rather than quietly patched because an
-integrator who copied the earlier version needs to know.
+Every result above was observed against the deployed gate on 2026-09-16, and
+freshness makes them time-dependent: this gate refuses any attestation older
+than 24 hours. `USDZ` was last attested in August, so it is refused as stale
+(`#2`) before its clawback bit is ever read — the gate behaving correctly, not a
+regression. `KALE`, `AQUA` and `DOGE` were attested or re-attested on
+2026-09-16, and a re-run more than a day later will see them refused as stale
+too unless someone re-attests them.
 
-Submitting a `deposit` rather than simulating gives you the reason: `USDZ`
-reverts with `Error(Contract, #3)` (`IssuerCanTakeIt`) and the unattested asset
-with `Error(Contract, #1)` (`NotAttested`).
+`DOGE` is the case that matters. With a fresh attestation it is refused through
+the severity ceiling — `Error(Contract, #4)`, `SeverityTooHigh` — where the
+pre-fix instance admitted it. The registry itself always answered correctly
+(`is_safe(DOGE, 2, 0)` returned `false` even while the old gate admitted it), so
+the fault was in the example, and it is now fixed in the source, covered by a
+regression test, and deployed. If you copied the earlier version, add the
+severity ceiling from section 3.
+
+Submitting a `deposit` rather than simulating gives you the reason. Verified on
+2026-09-16: the unattested asset fails with `Error(Contract, #1)`
+(`NotAttested`), `DOGE` with `#4` (`SeverityTooHigh`), and `USDZ` with `#2`
+(`AttestationStale`). A failing call is rejected at simulation, so no
+transaction is submitted; the admitted path was exercised with a real deposit,
+recorded in [deployment.md](deployment.md).
 
 ## Verifying an attestation yourself
 
@@ -278,7 +296,7 @@ cannot tell you which — that is what `attested_at` and your own re-scan are fo
 ## Before you rely on this
 
 - It is on **testnet**, not pubnet.
-- **7 assets are attested.** Everything else returns `None`, which your gate
+- **10 assets are attested.** Everything else returns `None`, which your gate
   must treat as "unknown", and which — if you gate correctly — means your
   contract refuses nearly every asset on the network.
 - **One key can write any attestation.** There is no multisig and no threshold

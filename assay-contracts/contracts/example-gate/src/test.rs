@@ -7,7 +7,7 @@
 use super::*;
 use assay_safety_registry::{
     SafetyRegistry as Registry, SafetyRegistryClient as RegistryClient, MECH_AUTH_REVOCABLE,
-    MECH_CLAWBACK_ENABLED, SEVERITY_CLEAR, SEVERITY_HIGH, SEVERITY_MEDIUM,
+    MECH_CLAWBACK_ENABLED, SEVERITY_CLEAR, SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM,
 };
 use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, BytesN, Env};
 
@@ -69,8 +69,9 @@ fn clean_asset_is_admitted_and_credited() {
     assert_eq!(f.gate.balance(&asset, &user), 100);
 }
 
-/// The bitset gate, not the severity gate. A confiscation-capable asset is
-/// refused because of the bit that is set, and the test names that bit.
+/// A confiscation-capable asset is refused. With MAX_SEVERITY = 2, severity
+/// HIGH (3) exceeds the ceiling, so the severity check fires first. Both
+/// checks exist; the order doesn't matter for the outcome.
 #[test]
 fn confiscation_capable_asset_is_refused() {
     let f = setup();
@@ -86,7 +87,7 @@ fn confiscation_capable_asset_is_refused() {
     assert!(!f.gate.would_admit(&asset));
     assert_eq!(
         f.gate.try_deposit(&asset, &user, &100),
-        Err(Ok(Error::IssuerCanTakeIt))
+        Err(Ok(Error::SeverityTooHigh))
     );
 }
 
@@ -144,4 +145,43 @@ fn re_attestation_can_revoke_admission() {
         &hash(&f.env),
     );
     assert!(!f.gate.would_admit(&asset));
+}
+
+/// The DOGE counter-example: critical-by-reputation with no capability bits.
+/// A gate that reads only the bitset admits it (`48 & 6 == 0`). The severity
+/// ceiling is what refuses it — without this check, a known scam walks in.
+#[test]
+fn critical_by_reputation_without_capability_bits_is_refused() {
+    let f = setup();
+    let asset = Address::generate(&f.env);
+    let user = Address::generate(&f.env);
+    // severity 4 (critical), flags 48 = domain_unverified | blocklisted,
+    // zero capability bits — exactly the DOGE scenario.
+    f.registry.attest(
+        &asset,
+        &SEVERITY_CRITICAL,
+        &((1 << 4) | (1 << 5)),
+        &hash(&f.env),
+    );
+
+    assert!(!f.gate.would_admit(&asset));
+    assert_eq!(
+        f.gate.try_deposit(&asset, &user, &100),
+        Err(Ok(Error::SeverityTooHigh))
+    );
+}
+
+/// Severity above the ceiling is refused even when no capability bits are set.
+#[test]
+fn severity_above_ceiling_is_refused() {
+    let f = setup();
+    let asset = Address::generate(&f.env);
+    f.registry
+        .attest(&asset, &SEVERITY_CRITICAL, &0, &hash(&f.env));
+
+    assert!(!f.gate.would_admit(&asset));
+    assert_eq!(
+        f.gate.try_deposit(&asset, &Address::generate(&f.env), &100),
+        Err(Ok(Error::SeverityTooHigh))
+    );
 }

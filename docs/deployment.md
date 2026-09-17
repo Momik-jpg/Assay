@@ -20,8 +20,9 @@ deployed alongside it, wired to the registry above:
 
 | | |
 | --- | --- |
-| **Example gate contract** | `CANO57JRGTATHGLM26TWYPIXERSPVI5R52H33K7ZUJGGOEOVVZA44W3U` |
-| Wasm hash | `d1683a1ed24d7645168f5c212ad3f7d8979331b41e53ffa9eaa7a60babe32ebe` |
+| **Example gate contract** | `CAL5VYSWLKG367D5IYGI57XH7EMN5PLJ4CD6K3MO2HJBYYKEKPG3NKRX` |
+| Wasm hash | `ca40172ec8ebc259e7e21429748b2bd7cafe467fa3005d849d81d16938e8987c` |
+| Redeployed | 2026-09-16 — severity ceiling, [#26](https://github.com/use-assay/Assay/issues/26) |
 | Source | [`contracts/example-gate`](../assay-contracts/contracts/example-gate) |
 
 ### Deployment transactions
@@ -33,16 +34,26 @@ deployed alongside it, wired to the registry above:
 | `init(admin)` | `14082d78211ad494406c14d6f0bd2993a88008cb4091457a7685b3794d20ee09` |
 | Upload gate wasm | `2dc8387ff2a4ef2a24f788de627f566dfc6d60d96806f7ebffb529324056233e` |
 | Deploy gate | `a6c4f642af24f32ec116a8a8918153cacafb86f9ac33c73dfb942dce73d5897f` |
+| Upload gate wasm (redeploy) | `943c90b5d710499aa489b4ccb0c257447efb049859ef4401e10dc4e316e6d832` |
+| Deploy gate (redeploy, #26 fix) | `2137605713924608aa801c560a9121534efd330201e6e174a33da51190e7bfa4` |
+| Deploy gate (duplicate, unused) | `5fde49952a83f1acbe5b04a302302e0449f3348a49105d67babb8d1a5418b6c6` |
+
+The last row is a mistake, recorded rather than hidden. Two working sessions
+redeployed the same fixed wasm six minutes apart, so a second instance exists at
+`CCMA2SW23WUWTJGSC2MTUZVYWROMVTT42NLPTBCOAHGM632KEMNL5N3G`, bound to the same
+registry and running the same wasm (`ca40172e…`; it reused the upload above).
+Soroban contracts cannot be deleted. It behaves identically and nothing refers
+to it; `CAL5VYSW…` is the canonical instance.
 
 Any of these can be read at
 `https://stellar.expert/explorer/testnet/tx/<hash>`.
 
 ## Attested assets
 
-Seven mainnet assets, spanning the severity range. Every number below was
+Ten mainnet assets, spanning the severity range. Every number below was
 produced by `assay attestation` from a live scan and submitted unmodified by
-`make attest`; none was typed by hand. The full scan record, including the six
-further assets scanned but not attested, is in
+`make attest`; none was typed by hand. The full scan record, including the
+eight further assets scanned but not attested, is in
 [attestation-run.md](attestation-run.md).
 
 | Asset | Severity | Flags | Mechanics | Attest transaction |
@@ -54,6 +65,9 @@ further assets scanned but not attested, is in
 | `ARST` | 0 clear | `0` | — | `f497b91ab84340bcb7418940e620d080c8566e0cdf27346c8d74e165b5d66506` |
 | `USDGLO` | 3 high | `6` | `auth_revocable`, `auth_clawback_enabled` | `6016ed7d908cd20237f114b0cb6778886027ddc8336952acb77ddbeff16caf42` |
 | `DOGE` | 4 critical | `48` | `domain_unverified`, `blocklisted` | `ac1a89a64159e6ac2e9ed61bd67a79cd1584287cf57d19f9dc188d80e81298a6` |
+| `VELO` | 0 clear | `16` | `domain_unverified` | `dcae1dd810f3e310e71e006f175857b12a8925e173e6d62d9f023ee91582e85b` |
+| `REPO` | 4 critical | `48` | `domain_unverified`, `blocklisted` | `a6b5fa3058c3f7f25cbf45b22603f721de7767e4b853e644932e72215eb940e0` |
+| `KALE` | 0 clear | `16` | `domain_unverified` | `db36e5ece6c52d01287da2bdb9722affab84047d58ec21a332edd9d1e7392c90` |
 
 Issuers, SAC addresses, and the evidence hash each attestation commits to:
 
@@ -66,6 +80,9 @@ Issuers, SAC addresses, and the evidence hash each attestation commits to:
 | `ARST` | `GCSAZVWXZKWS4XS223M5F54H2B6XPIIXZZGP7KEAIU6YSL5HDRGCI3DG` | `CBARCMJYRRNSYCWCR3EU2PEHAHWHBCQSMIKQIUSDWR3BK7CBCP622Q2R` | `82a6103f…fccacb` |
 | `USDGLO` | `GBBS25EGYQPGEZCGCFBKG4OAGFXU6DSOQBGTHELLJT3HZXZJ34HWS6XV` | `CDGBOKCE25PVUKFWST2EEK52NHRS5WQ7TN26DFJYCEQNZNROQRSPIBQA` | `69b8c4f8…7c27a5` |
 | `DOGE` | `GA22IDJNHUMC3XKUCCBFNTQIJOUBWINC5GCXHLJ2V6KZ3OWAXCULNQ7P` | `CDUV37BUTYKKWNGECZZNRYMM7JIQYYWAI7L2TPTXWQAEMIPG4SXRBRPD` | `396c9f7c…91647e` |
+| `VELO` | `GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M` | `CDHI6B6HBY2Q7BVGQ74C23GN3TKPGLCCMOSSRTEQDTTX4ELO5V6A6IOM` | `3ed390fe…49e02a` |
+| `REPO` | `GA2BVQLGAG6UJDPHHTJDQAPBUYJV7D6IWIISGJI2LMQXTOKMHO36EAZR` | `CBLZSCLVU3ZXRUJ3GEL7R3IP6CSN6VUEWPX7O4OYS3F3BYFUCJR7EEAA` | `4dacaa0f…43cede` |
+| `KALE` | `GAKJM27QTNLBBZ352HQ4IDR3GWXUXQUEBKBDWOJG7RBH2NVEWUNSYCEF` | `CCVNR6CGD6NFQG7XC6AVU5HF4YAPVXW5KZJCD73XFKUUO4YZUNEFKU2Z` | `874087f2…dc6112` |
 
 `USDZ` is the case the [severity model](severity-model.md) exists to handle: a
 confiscation-capable issuer with a *verified* domain. It scores `high` on
@@ -138,23 +155,53 @@ unknown asset is unknown, not safe.
 | unattested | `false` | `false` |
 
 And through the deployed example gate, which is a real cross-contract call
-rather than a direct read — `would_admit` returns `true` only for `AQUA`, and a
-submitted `deposit` reverts with the contract error naming the reason:
+rather than a direct read. The gate was redeployed on 2026-09-16 with the
+severity ceiling that [#26](https://github.com/use-assay/Assay/issues/26)
+tracked (deploy tx `21376057…7bfa4`); the results below are against the new
+instance. Assets whose attestations are older than the gate's 24-hour window
+are refused as stale, which exercises that branch live as well:
 
 | Asset | `would_admit` | `deposit` |
 | --- | --- | --- |
-| `AQUA` | `true` | succeeded, balance credited (`7dde01b27c1c60f2c5f94ce453b652ca8fcd685fe8e1950ae6a4700b100679a0`) |
-| `USDZ` | `false` | reverts `Error(Contract, #3)` — `IssuerCanTakeIt` |
-| unattested | `false` | reverts `Error(Contract, #1)` — `NotAttested` |
+| `KALE` (clear, attested 2026-09-16) | `true` | succeeded, balance credited (`e3d2825c8e5a6615236904643873f0f325329c8a112ae338272a34abeab2f592`) |
+| `AQUA` (clear, re-attested 2026-09-16) | `true` | succeeded, balance credited (`2cb3ce286c6f0874af9e8c86948c2cafad5ef4ef64edf055997595266d3da33f`) |
+| `REPO` (critical, attested 2026-09-16) | `false` | `Error(Contract, #4)` — `SeverityTooHigh` |
+| `DOGE` (critical by reputation, re-attested 2026-09-16) | `false` | `Error(Contract, #4)` — `SeverityTooHigh` |
+| `USDZ` (clawback, attested 2026-08-15) | `false` | `Error(Contract, #2)` — `AttestationStale` |
+| unattested (`native`) | `false` | `Error(Contract, #1)` — `NotAttested` |
 
-The gate refuses `USDC` too, at severity 2, because it reads the
-`auth_revocable` bit rather than the severity number.
+Refusals fail at simulation, so no transaction is submitted for them; the admit
+path is proven with submitted deposits whose balances read back. Every row
+depends on the gate's 24-hour freshness window, so these results were observed
+on 2026-09-16 and will not reproduce unchanged a day later without
+re-attestation.
 
-It also **wrongly admits `DOGE`** for the same reason: the example masks
-capability bits only, and DOGE's severity `4` comes entirely from reputation,
-which sets no capability bit. A correct gate reads both axes. See
-[integrating.md](integrating.md) for the corrected pattern and
-[#26](https://github.com/use-assay/Assay/issues/26) for the contract fix.
+### The #26 fix, before and after
+
+The first run of this table found `DOGE` and `AQUA` refused as stale
+(`#2`), because their attestations predated the freshness window — which
+refused `DOGE` for the wrong reason and left the fix itself unobserved on the
+asset that exposed the bug. So both were re-attested from live scans, and the old
+and new instances were queried against the same fresh attestations:
+
+| Re-attestation | Transaction | `attested_at` | `evidence_hash` |
+| --- | --- | --- | --- |
+| `DOGE` | `5012431be06a49f0bdc9b77e274aafaafabc6b30f6a5de535616050617ccd64c` | `1789546342` | `396c9f7c…91647e` (unchanged) |
+| `AQUA` | `595f89b53c897f583132e302ea6f78f1c334ce819423a27c5dd7981174fe39e7` | `1789546357` | `688453bd…61a4a9` (unchanged) |
+
+Both hashes are byte-identical to the original attestations, so the refresh
+changed only `attested_at` — the reproducibility property holding over a month
+for `AQUA`.
+
+| Gate | `AQUA` | `DOGE` |
+| --- | --- | --- |
+| Old, `CANO57JR…` (capability mask only) | admitted | **admitted** — the bug |
+| Fixed, `CAL5VYSW…` (mask + severity ceiling) | admitted | **refused, `#4` `SeverityTooHigh`** |
+
+The old instance admitted `DOGE` because it masked capability bits only, and
+DOGE's severity `4` comes entirely from reputation, which sets no capability bit.
+The old instance is still deployed — contracts cannot be removed — and nothing in
+these docs points to it any more.
 
 ## Redeploying
 
@@ -186,7 +233,7 @@ hand-written severity reach the contract.
 - **One key can write anything.** The admin is a single ed25519 account whose
   seed lives on one machine. Anyone holding it can attest any severity for any
   asset. A real deployment wants a threshold of independent attesters.
-- **7 attested assets.** Everything else on the network reads as `None`. That is the
+- **10 attested assets.** Everything else on the network reads as `None`. That is the
   correct answer — unknown, not safe — but it means the registry is not useful
   as a general lookup yet.
 - **No re-attestation schedule.** These attestations are as fresh as the

@@ -15,9 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Pinned to the module's own version rather than `stable`. When
+      # `stable` moved to Go 1.27, golangci-lint v2.12.2 (built with 1.26)
+      # panicked type-checking the newer standard library, and this check
+      # failed on every push for reasons unrelated to the code under test.
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           cache: true
 
       - name: gofmt
@@ -45,9 +49,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Pinned to the module's own version rather than `stable`. When
+      # `stable` moved to Go 1.27, golangci-lint v2.12.2 (built with 1.26)
+      # panicked type-checking the newer standard library, and this check
+      # failed on every push for reasons unrelated to the code under test.
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           cache: true
       - uses: golangci/golangci-lint-action@v9
         with:
@@ -73,3 +81,26 @@ jobs:
 
       - name: cargo test
         run: cargo test
+
+  # Merge gate: catches PRs that touch maintainer-owned safety-critical paths
+  # without manual review. A PR touching only docs or tests merges cleanly;
+  # one touching the severity model, the evidence_hash encoding, or the
+  # contract's fail-closed logic must be reviewed.
+  #
+  # The logic lives in scripts/merge-gate.sh so it can be verified offline
+  # against real commit ranges before it is trusted against a real PR. Note
+  # BASE uses the merge base rather than the PR's base sha directly: force-push
+  # history on the base branch can otherwise make every path look changed.
+  merge-gate:
+    name: Merge gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: check maintainer-owned paths
+        run: |
+          BASE=$(git merge-base origin/${{ github.base_ref }} ${{ github.event.pull_request.head.sha }})
+          ./scripts/merge-gate.sh "$BASE" ${{ github.event.pull_request.head.sha }}
