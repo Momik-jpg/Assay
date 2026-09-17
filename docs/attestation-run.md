@@ -750,9 +750,9 @@ its concrete motivating case.
   These attestations are exactly as fresh as their `attested_at`, and nothing
   refreshes them on a schedule.
 - **Four findings in the first 13 assets.** Two are fixed, one is fixed in
-  source and redeployed on 2026-09-16 (pending merge in
-  [PR #27](https://github.com/use-assay/Assay/pull/27)), one is deferred with a
-  version bump behind it. The next five subjects produced no new findings in the scanner itself —
+  source, redeployed on 2026-09-16, and merged in
+  [PR #27](https://github.com/use-assay/Assay/pull/27) on 2026-09-17; one is
+  deferred with a version bump behind it. The next five subjects produced no new findings in the scanner itself —
   but three failures of the *plan*, one refused verdict, and the first live
   specimen of a known gap (#4). A quiet tranche is not automatically a
   reassuring one.
